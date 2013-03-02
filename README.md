@@ -1,0 +1,1 @@
+This is the weather system that was originally supposed to be placed outside the BU Boathouse on Storrow Drive. The idea has not been fully executed and the need for such a system has dissapeared. The system is now, and has been, used for development of other projects such as those in ../SeniorDesign.git
