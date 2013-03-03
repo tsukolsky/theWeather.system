@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Atmel Studio Solution File, Format Version 11.00
+Project("{54F91283-7BC4-4236-8FF9-10F437C3AD48}") = "theWeather.system_board_324P", "theWeather.system_board_3244\theWeather.system_board_324P.cproj", "{1467E7EA-9F6C-4071-89CC-D621F35C5E8A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AVR = Debug|AVR
+		Release|AVR = Release|AVR
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1467E7EA-9F6C-4071-89CC-D621F35C5E8A}.Debug|AVR.ActiveCfg = Debug|AVR
+		{1467E7EA-9F6C-4071-89CC-D621F35C5E8A}.Debug|AVR.Build.0 = Debug|AVR
+		{1467E7EA-9F6C-4071-89CC-D621F35C5E8A}.Release|AVR.ActiveCfg = Release|AVR
+		{1467E7EA-9F6C-4071-89CC-D621F35C5E8A}.Release|AVR.Build.0 = Release|AVR
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
