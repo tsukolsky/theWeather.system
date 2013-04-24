@@ -3,12 +3,22 @@
 | Author: Todd Sukolsky
 | ID: U50387016
 | Initial Build: 1/3/2013
-| Last Revised: 1/17/13
+| Last Revised: 4/24/13
 | Copyright of Todd Sukolsky
 |================================================================================
-| Description: 
+| Description: This is the main program for the ATmega324PA, project theWeather.system.
+|		This is responsible, in Rev A, for taking temperatuer readings from a thermistor,
+|		humidity readings, and two SPI by Wire temperature readings from PCB chips. For
+|		more information see Proposal in the Files folder. 
 |--------------------------------------------------------------------------------
 | Revisions:
+|	1/3: Initial build
+|	1/5: Added interrupts and timer functionality.
+|	1/6-4/23: Progressed code to the point it is now at pull. Not sure why I didn't comment
+|			  things, however I am now.
+|	4/24: Changed functionality to a less speratic model. Now this guy will take readings, print,
+|		  go to sleep, and wake up after so many timer overflows. This is ideal. Now comes the time
+|		  to work on SPI with the ATtiny and I2C with the RTC.
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
@@ -21,20 +31,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "stdtypes.h"
-#include "atmega324P.h"
-
-/**************Code Storage defines**********/
-#define STARTUP
-#define MISC
-#define TIMER0
-//#define TIMER1
-//#define TIMER2
-#define SENSORS
-//#define DEBUG_THERM
+#include "ATmega324PA.h"
 
 /**************Baud defines******************/
-//#define FOSC 80000000					//using internal 8Mhz crystal, no clock divide
-#define FOSC 14747560					//using external 14.74756 MHz crystal with no clock divide (X2)
+#define FOSC 8000000					//using internal 8Mhz crystal, no clock divide
+//#define FOSC 14747560					//using external 14.74756 MHz crystal with no clock divide (X2)
 #define BAUD 9600
 #define MYUBRR FOSC/16/BAUD - 1			//declares baud rate
 
@@ -48,16 +49,13 @@
 /**************Debug LED Value**************/
 #define DEBUG_NUMBER 0xF8				//8'b11111000
 
-#define OFF_AFTER	120					//120*177ms = ~21.25 seconds until it will sleep
-#define TIMER_COUNT	12					//12*177ms =~2.1 seconds for toggling on timer overflow
+#define SLEEP_TIME 120					//should sleep for 10 seconds.
 	
 /* ------------------------------------------------------------ */
 /*				Global Variables								*/
 /* ------------------------------------------------------------ */
 
-BYTE timerZeroCount;
-BYTE timerTwoCount;
-BYTE sleepCnt;
+BYTE sleepCnt=0;
 BOOL flagGoToSleep;
 
 /* ------------------------------------------------------------ */
@@ -74,7 +72,7 @@ void GetTempADT();
 void GetHumidity();
 void GetTempTI(unsigned int ubrr1);
 void InitTimer0();
-//void InitTimer2();
+void InitTimer2();
 
 /* ------------------------------------------------------------ */
 /*				Interrupt Service Routines						*/
@@ -82,36 +80,34 @@ void InitTimer0();
 
 ISR(INT2_vect){
 	prtDebug = (1 << bnD2);	//should toggle amber LED on. 
-	Wait_ms(500);
+	Wait_ms(10);
 	//Clears interrupt vector
 }
 
+
 ISR(TIMER0_OVF_vect){
-	timerZeroCount++; sleepCnt++;
+	static BYTE timerZeroCount=0;
+	timerZeroCount++;;
 	if (timerZeroCount >= 20) {pinDebug |= (1 << bnD0); timerZeroCount = 0;}		//should toggle amber LED and red to left of it
-	if (sleepCnt >= 150) {sleepCnt = 0; flagGoToSleep = fTrue;}
 }	
 
-/*
+//used for sleeping.
 ISR(TIMER2_OVF_vect){
-	timerTwoCount++;
-	sleepCnt++;
-	//if (timerTwoCount >=20) {pinDebug = (1 << bnD0); timerTwoCount = 0;}		//toggles green, left LED
+	static BYTE timerTwoCount=0;
+	if (timerTwoCount++ >=40) {pinDebug = (1 << bnD0); timerTwoCount = 0;}		//toggles green, left LED
 }
-*/
+
 
 /*****************************************************************************************************************/
 int main(void)
 {	
-	
-	flagGoToSleep = fFalse; sleepCnt = 0; timerZeroCount = 0; timerTwoCount = 0;	//initialize the global variables
 	DeviceInit();
 	AppInit(MYUBRR);
 	sei();
-	Wait_ms(1000);
+	Wait_ms(40);
 	ResetDebug();	//clear LED's
-	InitTimer0();
-	//InitTimer2();
+	//InitTimer0();
+	InitTimer2();
 
 	// main program loop
 	while (fTrue) {	
@@ -119,52 +115,44 @@ int main(void)
 		//Get Humidity from HoneyWell sensor, located on ADC1
 		prtDebug |= (1 << bnD0);
 		GetHumidity();
+		Wait_ms(10);
 		ResetDebug();
+
 		
 		//Get temp data from ADT7302 source, on SPI
 		prtDebug |= (1 << bnD1);
 		GetTempADT();
+		Wait_ms(10);
 		ResetDebug();
 		
 		//Get temperature data from TI source on SPI/USART0
 		prtDebug |= (1 << bnD2);
 		GetTempTI(MYUBRR);
+		Wait_ms(10);
 		ResetDebug();
 		
 		//Get temperature data from Thermistor on ADC2
 		prtDebug |= (1 << bnD3);
 		GetTempTherm();
-		ResetDebug();
-		Wait_ms(100);
-		
-		//Strobe last LED in heartbeat pattern
-		for (int i = 0; i < 12; i++) {
-			prtDebug |= (1 << bnD4);
-			Wait_ms(300);
-			ResetDebug();
-			Wait_ms(310);
-			prtDebug |= (1 << bnD4);
-			Wait_ms(400);
-			ResetDebug();
-			Wait_ms(1000);
-		}
-		
-		
-		
-		if (flagGoToSleep){
-			//Power down, wakes up on external interrupt on pin INT2, header pin 5
-			SMCR = (1 << SM1)|(1 << SM0);
-			SMCR |= (1 << SE);
-			Print0("\tPowering down...\t");
-			ResetDebug();						//Clear the LED's
+		Wait_ms(10);
+						
+		//Power save. Should sleep for ~10 seconds
+		Print0(" Going to sleep... ");
+		ResetDebug();						//Clear the LED's
+		flagGoToSleep=fTrue;
+		sleepCnt=0;
+		SMCR = (1 << SM1)|(1 << SM0);
+		SMCR |= (1 << SE);
+		while (sleepCnt<SLEEP_TIME){
 			asm volatile("SLEEP");
-			//Reset sleep register on wakeup
-			flagGoToSleep = fFalse;
-			SMCR = 0;
-		}
-		
-		//Double check and make sure flag is False if it gets to here.
+			sleepCnt++;
+		}		
+		SMCR = 0;
 		flagGoToSleep = fFalse;
+		Wait_ms(20);
+		//Reset sleep register on wakeup
+		Print0(" Waking up... ");
+		
 	}  //end while fTrue
 } // end main()
 
@@ -183,7 +171,6 @@ void DeviceInit(void)
 	PORTD = 0x00;
 }
 /**********************************************************************************************************************************/
-#ifdef STARTUP
 void AppInit(unsigned int ubrr)
 {
 	//initialize stuff for UART
@@ -197,12 +184,12 @@ void AppInit(unsigned int ubrr)
 	ddrDebug |= (1 << bnD0)|(1 << bnD1)|(1 << bnD2)|(1 << bnD3)|(1 << bnD4);	//Set as outputs
 	for (int i = 3; i < 8; i++) {	//Strobe from right to left
 		prtDebug |= (1 << i);
-		Wait_ms(200);
+		Wait_ms(10);
 		ResetDebug();
 	}
 	for (int j = 7; j >= 0; j--){	//Strobe from left to right
 		prtDebug |= (1 << j);
-		Wait_ms(200);
+		Wait_ms(10);
 		ResetDebug();
 	}		
 	
@@ -223,13 +210,11 @@ void AppInit(unsigned int ubrr)
 	//set up interrupts for waking device up through INT2
 	EICRA |= (1 << ISC21)|(1 << ISC20);		//rising edge of INT2 triggers asynchronous interrupt
 	EIMSK  = (1 << INT2);					//enables interrupts on INT2 as long as global interrupt is set.
+	
+	flagGoToSleep=fFalse;
 }
-#endif			//end STARTUP
 
 /**********************************************************************************************************************************/
-
-/**********************************************************************************************************************************/
-#ifdef TIMER0
 void InitTimer0(){
 	//Disable glbal interrupts
 	cli();
@@ -243,10 +228,8 @@ void InitTimer0(){
 	//Enable global interrupts
 	sei();
 }	
-#endif			//TIMER0
 	
 /**********************************************************************************************************************************/
-#ifdef TIMER2
 void InitTimer2(){
 	//Disable global interrupts
 	cli();
@@ -261,10 +244,7 @@ void InitTimer2(){
 	//Re-enable global interrupts
 	sei();
 }
-#endif			//TIMER 2
-
 /**********************************************************************************************************************************/
-#ifdef SENSORS
 
 void GetTempTI(unsigned int ubrr)
 {
@@ -474,12 +454,8 @@ void ResetDebug()
 		WORD tempNumber = (prtDebug ^ DEBUG_NUMBER);	//gets numbers to clear,
 		prtDebug &= tempNumber;
 }
-#endif
 
 /**********************************************************************************************************************************/																											
-#ifdef MISC
-
-
 void Wait_ms(WORD delay)
 {	
 	WORD i;
@@ -496,7 +472,7 @@ void Wait_ms(WORD delay)
 
 void PutUart0Ch(char ch)
 {
-	while (! (UCSR0A & (1 << UDRE0)) ) { asm volatile("nop"); }
+	while (! (UCSR0A & (1 << UDRE0)));
 	UDR0 = ch;
 }
 
@@ -512,11 +488,4 @@ void Print0(char string[])
 	}
 }
 
-#endif			//MISC
-
 /************************************************************************/
-
-
-/************************************************************************\
-						Old AVR Code
-\************************************************************************/
