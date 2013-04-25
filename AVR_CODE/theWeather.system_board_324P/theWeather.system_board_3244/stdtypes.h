@@ -23,7 +23,7 @@
 #define	fFalse	0
 #define	fTrue	(!fFalse)
 
-#define	BOOL	uint16_t
+#define	BOOL	uint8_t
 #define	BYTE	uint8_t
 #define	WORD	uint16_t
 
