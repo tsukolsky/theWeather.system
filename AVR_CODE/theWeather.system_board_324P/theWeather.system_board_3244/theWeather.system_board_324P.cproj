@@ -144,6 +144,9 @@
     <Compile Include="main.c">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="myUart.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="stdtypes.h">
       <SubType>compile</SubType>
     </Compile>
