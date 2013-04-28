@@ -39,7 +39,7 @@ BYTE EEMEM eeOldestDay=0;
 
 void MoveDown(BYTE whichDay){
 	//Get what day we are moving and all of it's data into temp variables
-	BYTE offset=INITIAL_OFFSET+(whichDay)*BLOCK_SIZE;
+	WORD offset=INITIAL_OFFSET+(whichDay)*BLOCK_SIZE;
 	WORD dayT,monthT;
 	dayT=eeprom_read_word((WORD *)(offset+DAY));
 	monthT=eeprom_read_word((WORD *)(offset+MONTH));
@@ -59,6 +59,7 @@ void MoveDown(BYTE whichDay){
 }
 
 void SaveDay(){
+	//This is called when a new day occurs. This is done BEFORE the Day is incremented, so we can use the current data.
 	static BOOL allFull=fFalse;
 	BYTE daysStored,oldestDay;
 	WORD offset;

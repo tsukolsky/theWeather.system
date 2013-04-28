@@ -12,6 +12,9 @@
 |		4/26: Initial build. Can't increment normal way, has to be done long way
 |			  with temp variables. Pain in the butt. On new day the addDay function
 |			  will call thermostat function to save the days information.
+|		4/27: Added PrintTime and SetTime functions to deal with incoming uart.
+|			  On a new day it triggers thermostat to update, happens before new day
+|			  is set so it's okay. Resets for a new days statistics then
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
@@ -24,6 +27,7 @@ using namespace std;
 BYTE daysInMonths[12]={31,28,31,30,31,30,31,31,30,31,30,31};
 extern thermostat theThermostat;
 void Print0(char string[]);
+void PutUart0Ch(char ch);
 
 class clock{
 	public:
@@ -35,6 +39,8 @@ class clock{
 		BYTE getDay();
 		BYTE getMonth();
 		WORD getYear();
+		void setTime(WORD hours, WORD minutes, WORD seconds);
+		void printTime();
 		
 	private:
 		volatile BYTE second,minute,hour;
@@ -54,6 +60,25 @@ clock::clock(){
 	day=0;
 	month=0;
 	year=2013;
+}
+
+void clock::setTime(WORD hours, WORD minutes, WORD seconds){
+	hour=hours;
+	minute=minutes;
+	second=seconds;
+}
+
+void clock::printTime(){
+	char str1[3],str2[3],str3[3];
+	utoa(hour,str1,10);
+	utoa(minute,str2,10);
+	utoa(second,str3,10);
+	Print0(str1);
+	PutUart0Ch(':');
+	Print0(str2);
+	PutUart0Ch(':');
+	Print0(str3);
+	Print0("XXX");
 }
 
 void clock::addSecond(WORD seconds){
@@ -83,6 +108,7 @@ void clock::addHour(WORD hours){
 void clock::addDay(WORD days){
 	//new day, need to save the average, high and low into eeprom
 	theThermostat.saveData();
+	theThermostat.addTheDay();
 	
 	//Get the new day.
 	volatile int tempDays=day+days;

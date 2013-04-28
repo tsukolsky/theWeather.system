@@ -3,7 +3,7 @@
 | Author: Todd Sukolsky
 | Collaborator: Michael Gurr
 | Initial Build: 1/3/2013
-| Last Revised: 4/26/13
+| Last Revised: 4/27/13
 | Copyright of Todd Sukolsky and Michael Gurr
 |================================================================================
 | Description: This is the main program for the ATmega324PA, project theWeather.system.
@@ -24,7 +24,10 @@
 |	4/26: Changed the project into a CPP to allow for classes. Added thermostat, clock, eeprom functionality.
 |		  Now the system will not do anything until an interrupt occurs, at which point it will set a flag to
 |		  receive from the Pi and then go get the message. Clock is implemented to interface with the RTC
-|		  chip on board, can now save humidities. clock saves the day's statistics when at midnight. 	  
+|		  chip on board, can now save humidities. clock saves the day's statistics when at midnight.
+|	4/27: Worked with more UART commands. now recognizes "WEEK.", "time.", and can receive a time with format HHMMSS.
+|		  On a new day, the week averages are added too. If there is no week data yet, pulls current data for the week.
+|		  Makes sure the time is set to 7AM when that happens as well since that's when the script on the Pi triggers this. 	  
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
@@ -39,10 +42,11 @@
 #include <avr/eeprom.h>
 #include "stdtypes.h"
 #include "ATmega324PA.h"
-#include "myUart.h"
 #include "thermostat.h"
 #include "clock.h"
+#include "myUart.h"
 #include "eepromGurrDaddy.h"
+#include "myTWI.h"
 
 /**************Baud defines******************/
 #define FOSC 8000000					//using internal 8Mhz crystal, no clock divide
@@ -69,7 +73,7 @@
 /* ------------------------------------------------------------ */
 
 WORD sleepCnt=0;									//originally used to map how long the device sleeps, can now be used for downtime?
-BOOL flagGoToSleep, flagAllStats,flagReceivePi;
+BOOL flagGoToSleep, flagAllStats,flagReceivePi, flagSendWeek;
 
 clock theClock;
 thermostat theThermostat;
@@ -134,6 +138,7 @@ int main(void)
 	AppInit(MYUBRR);
 	ResetDebug();	//clear LED's
 	InitTimer2();
+	TWI_init_master();		//make us the master of our own destiny
 	sei();
 	Wait_sec(2);
 	prtDebug|=(1 << bnD4);
@@ -142,18 +147,24 @@ int main(void)
 		
 		//IF receiving from the Pi
 		if (flagReceivePi){
-			Print0("Receiving.");
+			//Print0("Receiving.");
 			ReceivePi();
 			prtDebug &= ~(1 << bnD1);
 		}
 		Wait_sec(1);
 		
+		//Print the week, does implicit things
+		if (flagSendWeek){
+			theThermostat.PrintWeek();
+			flagSendWeek=fFalse;
+		}
+		
 		//If we were asked for stats, send them back.
 		if (flagAllStats){
 			cli();
-			Print0("Taking readings.");
+			//Print0("Taking readings.");
 			prtDebug |= (1 << bnD2);
-			char printString[45];
+			char printString[50];
 			//Get all the data readings
 			double adtTemp=GetTempADT();
 			double tiTemp=GetTempTI(MYUBRR);
@@ -176,13 +187,13 @@ int main(void)
 			strcat(printString,thermStr);
 			strcat(printString,"/HU");
 			strcat(printString,humidityStr);
-			strcat(printString,"X");
 			//Drop debug indicator light, print the string, exit while clearing the string in memory
 			prtDebug &= ~(1 << bnD2);
 			Print0(printString);
+			Print0("XXX");
 			flagAllStats=fFalse;
 			int i=0;
-			for (i=0;i<45;i++){printString[i]=NULL;}
+			for (i=0;i<50;i++){printString[i]=NULL;}
 			sei();
 		}		
 		
@@ -266,6 +277,7 @@ void AppInit(unsigned int ubrr)
 	flagGoToSleep=fFalse;
 	flagAllStats=fFalse;
 	flagReceivePi=fFalse;
+	flagSendWeek=fFalse;
 }
 
 /**********************************************************************************************************************************/

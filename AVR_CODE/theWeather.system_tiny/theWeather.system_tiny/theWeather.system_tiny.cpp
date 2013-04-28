@@ -1,7 +1,7 @@
 /*******************************************************************************\
-| ATtiny84A.c
+| theWeather.system_tiny.cpp
 | Author: Todd Sukolsky
-| ID: U50387016
+| Collaborator: Michael Gurr
 | Initial Build: 12/28/12
 | Last Revised: 4/24/2013
 | Created by Todd Sukolsky
@@ -11,7 +11,7 @@
 |				pins on the ATMEGA168A on the SolarBoard
 |--------------------------------------------------------------------------------
 | Revisions: 7/31--Created
-|			4/24: Added code for PCINT3 to be enabled, rising edge causes a hit. 
+|			4/24: Added code for PCINT3 to be enabled, rising edge causes a hit.
 |				  Added ADC initializations. Thought we could communicate SPI to the
 |				  ATmega324PA, but that was false. It needs to be done on an I2C bus, joy.
 |================================================================================
@@ -27,8 +27,9 @@
 #include <string.h>
 #include "stdtypes.h"
 #include "ATtiny84A.h"
+#include "tinyTWI.h"
 
-#define FOSC 1000000					//using internal 8MHz crystal with no clock divide
+#define FOSC 8000000					//using internal 8MHz crystal with no clock divide
 #define BAUD 9600
 #define MYUBRR FOSC/16/BAUD - 1	//declares baud rate
 
@@ -46,10 +47,7 @@ BOOL flagWaitingForADC=fFalse;
 void DeviceInit (void);
 void AppInit (unsigned int ubrr); //initializes UART, LEDs, other things
 void Wait_ms(volatile WORD delay);
-void PutUart0Ch(char ch);
-void Print0(char string[]);
-void SPI_Init(void);
-BYTE SPI_Exchange(BYTE out);
+
 /* ------------------------------------------------------------ */
 /*				Interrupt Service Routines						*/
 /* ------------------------------------------------------------ */
@@ -72,11 +70,11 @@ int main(void)
 {
 	DeviceInit();
 	AppInit(MYUBRR);
-	BYTE sentByte=0x05, receivedByte=0x00;
+	BYTE sendByte=0x05, receivedByte=0x00;
 	// main program loop
 	while (fTrue) {
-		//The ATtiny waits for an exchanges, then waits again.
-		//receivedByte=SPI_Exchange(sentByte);
+		SendToMega(sendByte);
+
 	}  //end while fTrue
 } // end main()
 
@@ -93,7 +91,8 @@ void DeviceInit(void)
 void AppInit(unsigned int ubrr)
 {
 	//Initialize I2C
-		
+	TWI_init_slave();
+	
 	//Initialize ADC
 	ADMUX = 0x00;							//Uses reference 3.3V, ADC0
 	ADCSRA = (1 << ADIE)|(1 << ADPS2)|(1 << ADPS0);		//enable global interrupt, clk divide of 32

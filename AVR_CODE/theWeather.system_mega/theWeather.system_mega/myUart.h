@@ -3,7 +3,7 @@
 | Author: Todd Sukolsky
 | Collaborator: Michael Gurr
 | Initial Build: 4/26/2013
-| Last Revised: 4/26/2013
+| Last Revised: 4/27/2013
 | Copyright of Todd Sukolsky and Michael Gurr
 |================================================================================
 | Description: This header file contains declarations for UART transmission/reception
@@ -11,11 +11,14 @@
 |--------------------------------------------------------------------------------
 | Revisions:
 |		4/26: Initial build.
+|		4/27: Added recognized commands time., T<time>, WEEK. to uart receive that
+|			  in turn responds back to the server.
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
 
-extern BOOL flagReceivePi,flagAllStats;
+extern BOOL flagReceivePi,flagAllStats,flagSendWeek;
+extern clock theClock;
 void SaveDay();
 
 /*******************************/
@@ -69,9 +72,13 @@ void ReceivePi(){
 				break;
 			}//end case 1
 			case 2:{
-				if (!strncmp(recString,"STATS.",6)){flagAllStats=fTrue;state=3;}
-				else if (!strncmp(recString,"Hi.",3)){Print0("Hello Raspberry Pi!"); state=3;}
-				else if (!strncmp(recString,"save.",5)){Print0("Saving...");state=3; SaveDay();}
+				state=3;
+				if (!strncmp(recString,"STATS.",6)){flagAllStats=fTrue;}
+				else if (!strncmp(recString,"Hi.",3)){Print0("Hello Raspberry Pi!");}
+				else if (!strncmp(recString,"save.",5)){Print0("Saving..."); SaveDay();}
+				else if (!strncmp(recString,"WEEK.",6)){flagSendWeek=fTrue;}
+				else if (!strncmp(recString,"time.",5)){theClock.printTime();}
+				else if (recString[0]='T'){state=5;}
 				else {state=4;}
 				break;
 			}//end case 2
@@ -88,6 +95,23 @@ void ReceivePi(){
 				state=3;
 				break;
 			}//end case 4
+			case 5:{
+				char tempString[3];
+				tempString[0]=recString[1];
+				tempString[1]=recString[2];
+				tempString[2]='\0';
+				WORD hour=atoi(tempString);
+				tempString[0]=recString[3];
+				tempString[1]=recString[4];
+				WORD minute=atoi(tempString);
+				tempString[0]=recString[5];
+				tempString[1]=recString[6];				
+				WORD second=atoi(tempString);
+				theClock.setTime(hour,minute,second);
+				theClock.printTime();
+				state=3;
+				break;
+			}//end case 5
 			default:{flagReceivePi=fFalse;break;}			
 		}//end switch
 	}//end while ReceivePi	
