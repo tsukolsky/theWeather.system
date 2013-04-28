@@ -27,7 +27,8 @@
 |		  chip on board, can now save humidities. clock saves the day's statistics when at midnight.
 |	4/27: Worked with more UART commands. now recognizes "WEEK.", "time.", and can receive a time with format HHMMSS.
 |		  On a new day, the week averages are added too. If there is no week data yet, pulls current data for the week.
-|		  Makes sure the time is set to 7AM when that happens as well since that's when the script on the Pi triggers this. 	  
+|		  Makes sure the time is set to 7AM when that happens as well since that's when the script on the Pi triggers this. 	
+|	4/28: Slight tweak to PrintWeek protocol  
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
@@ -66,8 +67,8 @@
 
 #define TIMEOUT		60*5				//5 second timeout with UART receptions.
 #define SLEEP_TIME  60*5				
-#define PULSE_TIME	60
-//8MHz/1024=7820/(256)~30=one half second.	
+#define PULSE_TIME	31
+//8MHz/1024=7820/(256)~30=one second.	
 /* ------------------------------------------------------------ */
 /*				Global Variables								*/
 /* ------------------------------------------------------------ */
@@ -110,17 +111,11 @@ ISR(TIMER2_OVF_vect){
 	cli();
 	static WORD timerTwoCount=0,receivePiTimer=0;
 	
-	//Toggle on the second
-	if (timerTwoCount<PULSE_TIME/2){
-		prtDebug |= (1 << bnD0);
-	} else {
-		prtDebug &= ~(1 << bnD0);
-	}
-	
+
 	if (timerTwoCount++>=PULSE_TIME) {
-		BYTE lastSecond=theClock.getSecond();
 		theClock.addSecond(1);  
 		timerTwoCount = 0;
+		pinDebug = (1 << bnD0);
 	}		//toggles green, left LED. Should be on half second.
 	
 	//Receive Timeout	
@@ -155,7 +150,9 @@ int main(void)
 		
 		//Print the week, does implicit things
 		if (flagSendWeek){
+			theThermostat.takeReadings();
 			theThermostat.PrintWeek();
+			theClock.setTime(7,0,0);
 			flagSendWeek=fFalse;
 		}
 		
