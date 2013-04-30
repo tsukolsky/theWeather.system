@@ -15,6 +15,7 @@
 |		4/27: Added PrintTime and SetTime functions to deal with incoming uart.
 |			  On a new day it triggers thermostat to update, happens before new day
 |			  is set so it's okay. Resets for a new days statistics then
+|		4/28: Edited so that every 10 minutes a reading is taken. 
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
@@ -95,6 +96,11 @@ void clock::addMinute(WORD minutes){
 	if (tempMinutes/60>=1){
 		addHour(tempMinutes/60);
 	}
+	
+	//If minute%20==0, take reading
+	if (minute%20==0){
+		theThermostat.takeReadings();
+	}
 }
 
 void clock::addHour(WORD hours){
@@ -115,7 +121,7 @@ void clock::addDay(WORD days){
 	BYTE currentMonth=month;
 	if (tempDays/daysInMonths[currentMonth]>=1){
 		//See how many months we need to go forward.
-		while (tempDays >= daysInMonths[currentMonth]){
+		while (tempDays > daysInMonths[currentMonth]){
 			tempDays-=daysInMonths[currentMonth];
 			currentMonth++;
 		}

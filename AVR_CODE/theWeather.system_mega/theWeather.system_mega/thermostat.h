@@ -12,13 +12,17 @@
 |		4/26: Initial build.
 |		4/27: Added addTheDay, printTheWeek, resetDay and resetWeek for functionality
 |			  beyond current readings. Now able to save a weeks worth of data.
+|		4.28: Fixed an issue with the new day->newWeek timing. Now on a new week it takes a reading
+|			  just to make sure there is something valid in the data variables.
 |================================================================================
 | *NOTES:
 \*******************************************************************************/
 
 void SaveDay();		//function defined in EEPROM.
 void Print0(char string[]);
-
+double GetTempTherm();
+double GetHumidity();
+	
 class thermostat{
 	public:
 		thermostat();
@@ -33,6 +37,7 @@ class thermostat{
 		void saveData();
 		void PrintWeek();
 		void addTheDay();
+		void takeReadings();
 		
 	private:
 		double high,low,averageT, averageH;			//high temp, low temp, averagetemp, average humidity: all for the current day.
@@ -66,8 +71,13 @@ void thermostat::resetWeek(){
 	weekAverageT=0;	
 }
 
+void thermostat::takeReadings(){
+	addDataPoint(GetTempTherm(),GetHumidity());	
+}
+
 void thermostat::addTheDay(){
 	//Add this day to the average of things
+	takeReadings();
 	howManyDays++;
 	weekHigh=(weekHigh*(howManyDays-1) + high)/howManyDays;
 	weekLow=(weekLow*(howManyDays-1)+low)/howManyDays;
@@ -77,6 +87,7 @@ void thermostat::addTheDay(){
 }
 
 void thermostat::PrintWeek(){
+	//Set the time, take a reading
 	if (howManyDays==0){
 		weekAverageT=averageT;
 		weekAverageH=averageH;
